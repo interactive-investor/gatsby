@@ -1,0 +1,16 @@
+{
+  "name": "gatsby-starter-hello-world",
+  "description": "Gatsby hello world starter",
+  "license": "MIT",
+  "scripts": {
+    "develop": "gatsby develop",
+    "build": "GATSBY_CPU_COUNT=physical_cores NUM_PAGES=25000 gatsby build",
+    "serve": "gatsby serve"
+  },
+  "dependencies": {
+    "gatsby": "^2.0.0-beta.76",
+    "react": "^16.3.2",
+    "react-dom": "^16.3.2",
+    "react-jss": "^8.6.1"
+  }
+}
