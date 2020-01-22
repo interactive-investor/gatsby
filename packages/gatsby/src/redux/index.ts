@@ -60,7 +60,12 @@ export const configureStore = (initialState: IReduxState): Store<IReduxState> =>
     applyMiddleware(thunk, multi)
   )
 
-export const store = configureStore(readState())
+const initialState = readState()
+// Page data is not required to be in the initial redux store.
+// This will enable us to make a comparison of the cached state and new state.
+// Allowing us to add and delete pages.
+initialState.pages = new Map()
+export const store = configureStore(initialState) // Persist state.
 
 // Persist state.
 export const saveState = (): void => {
@@ -68,6 +73,7 @@ export const saveState = (): void => {
   const pickedState = _.pick(state, [
     `nodes`,
     `status`,
+    `pages`,
     `componentDataDependencies`,
     `components`,
     `jobsV2`,
