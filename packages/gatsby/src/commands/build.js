@@ -1,6 +1,6 @@
 /* @flow */
+
 const path = require(`path`)
-const fs = require(`fs-extra`)
 const report = require(`gatsby-cli/lib/reporter`)
 const buildHTML = require(`./build-html`)
 const buildProductionBundle = require(`./build-javascript`)
@@ -11,12 +11,11 @@ const { initTracer, stopTracer } = require(`../utils/tracer`)
 const db = require(`../db`)
 const signalExit = require(`signal-exit`)
 const telemetry = require(`gatsby-telemetry`)
-const { store, emitter, readState } = require(`../redux`)
+const { store, emitter } = require(`../redux`)
 const queryUtil = require(`../query`)
 const appDataUtil = require(`../utils/app-data`)
 const WorkerPool = require(`../utils/worker/pool`)
 const { structureWebpackErrors } = require(`../utils/webpack-error-utils`)
-const pageDataUtil = require(`../utils/page-data`)
 const {
   waitUntilAllJobsComplete: waitUntilAllJobsV2Complete,
 } = require(`../utils/jobs-manager`)
@@ -49,8 +48,6 @@ const waitUntilAllJobsComplete = () => {
 
 module.exports = async function build(program: BuildArgs) {
   const publicDir = path.join(program.directory, `public`)
-  const incrementalBuild =
-    process.env.GATSBY_INCREMENTAL_BUILD === `true` || false
   initTracer(program.openTracingConfigFile)
   const buildActivity = report.phantomActivity(`build`)
   buildActivity.start()
@@ -71,7 +68,7 @@ module.exports = async function build(program: BuildArgs) {
   const {
     processPageQueries,
     processStaticQueries,
-  } = await queryUtil.getInitialQueryProcessors({
+  } = queryUtil.getInitialQueryProcessors({
     parentSpan: buildSpan,
   })
 
@@ -103,7 +100,7 @@ module.exports = async function build(program: BuildArgs) {
   const webpackCompilationHash = stats.hash
   if (
     webpackCompilationHash !== store.getState().webpackCompilationHash ||
-    (!incrementalBuild && !appDataUtil.exists(publicDir))
+    !appDataUtil.exists(publicDir)
   ) {
     store.dispatch({
       type: `SET_WEBPACK_COMPILATION_HASH`,
@@ -139,14 +136,15 @@ module.exports = async function build(program: BuildArgs) {
   require(`../redux/actions`).boundActionCreators.setProgramStatus(
     `BOOTSTRAP_QUERY_RUNNING_FINISHED`
   )
+
+  await db.saveState()
+
   await waitUntilAllJobsComplete()
 
-  activity = report.activityTimer(`Building static HTML for pages`, {
-    parentSpan: buildSpan,
-  })
-  const pagePaths = incrementalBuild
-    ? await pageDataUtil.getNewPageKeys(store.getState(), readState())
-    : [...store.getState().pages.keys()]
+  // we need to save it again to make sure our latest state has been saved
+  await db.saveState()
+
+  const pagePaths = [...store.getState().pages.keys()]
   activity = report.createProgress(
     `Building static HTML for pages`,
     pagePaths.length,
@@ -186,30 +184,13 @@ module.exports = async function build(program: BuildArgs) {
   }
   activity.done()
 
-  let deletedPageKeys = []
-  if (incrementalBuild) {
-    activity = report.activityTimer(`Delete previous page data`)
-    activity.start()
-    deletedPageKeys = await pageDataUtil.removePreviousPageData(
-      program.directory,
-      store.getState(),
-      readState()
-    )
-    activity.end()
-  }
-
   await apiRunnerNode(`onPostBuild`, {
     graphql: graphqlRunner,
     parentSpan: buildSpan,
   })
 
   // Make sure we saved the latest state so we have all jobs cached
-  activity = report.activityTimer(`Update cache for next build`, {
-    parentSpan: buildSpan,
-  })
-  activity.start()
   await db.saveState()
-  activity.end()
 
   report.info(`Done building in ${process.uptime()} sec`)
 
@@ -217,44 +198,4 @@ module.exports = async function build(program: BuildArgs) {
   await stopTracer()
   workerPool.end()
   buildActivity.end()
-  if (incrementalBuild && process.argv.indexOf(`--log-pages`) > -1) {
-    if (pagePaths.length) {
-      report.info(
-        `Incremental build pages:\n${pagePaths.map(
-          path => `Updated page: ${path}\n`
-        )}`.replace(/,/g, ``)
-      )
-    }
-    if (deletedPageKeys.length) {
-      report.info(
-        `Incremental build deleted pages:\n${deletedPageKeys.map(
-          path => `Deleted page: ${path}\n`
-        )}`.replace(/,/g, ``)
-      )
-    }
-  }
-
-  if (incrementalBuild && process.argv.indexOf(`--write-to-file`) > -1) {
-    const createdFilesPath = path.resolve(
-      `${program.directory}/.cache`,
-      `newPages.txt`
-    )
-    const deletedFilesPath = path.resolve(
-      `${program.directory}/.cache`,
-      `deletedPages.txt`
-    )
-
-    if (pagePaths.length) {
-      fs.writeFileSync(createdFilesPath, `${pagePaths.join(`\n`)}\n`, `utf8`)
-      report.info(`newPages.txt created`)
-    }
-    if (deletedPageKeys.length) {
-      fs.writeFileSync(
-        deletedFilesPath,
-        `${deletedPageKeys.join(`\n`)}\n`,
-        `utf8`
-      )
-      report.info(`deletedPages.txt created`)
-    }
-  }
 }

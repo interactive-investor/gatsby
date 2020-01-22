@@ -64,6 +64,6 @@ describe(`redux db`, () => {
     expect(data.components).not.toEqual(initialComponentsState)
 
     // yuck - loki and redux will have different shape of redux state (nodes and nodesByType)
-    expect(_.omit(data, [`nodes`, `nodesByType`, `pages`])).toMatchSnapshot()
+    expect(_.omit(data, [`nodes`, `nodesByType`])).toMatchSnapshot()
   })
 })

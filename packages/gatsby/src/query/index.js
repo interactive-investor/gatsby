@@ -3,12 +3,11 @@
 const _ = require(`lodash`)
 const Queue = require(`better-queue`)
 // const convertHrtime = require(`convert-hrtime`)
-const { store, emitter, readState } = require(`../redux`)
+const { store, emitter } = require(`../redux`)
 const { boundActionCreators } = require(`../redux/actions`)
 const report = require(`gatsby-cli/lib/reporter`)
 const queryQueue = require(`./queue`)
 const GraphQLRunner = require(`./graphql-runner`)
-const pageDataUtil = require(`../utils/page-data`)
 
 const seenIdsWithoutDataDependencies = new Set()
 let queuedDirtyActions = []
@@ -149,21 +148,10 @@ const calcInitialDirtyQueryIds = state => {
 /**
  * groups queryIds by whether they are static or page queries.
  */
-const groupQueryIds = async queryIds => {
-  const incrementalBuild =
-    process.env.GATSBY_INCREMENTAL_BUILD === `true` || false
+const groupQueryIds = queryIds => {
   const grouped = _.groupBy(queryIds, p =>
     p.slice(0, 4) === `sq--` ? `static` : `page`
   )
-
-  if (incrementalBuild) {
-    const newPageKeys = await pageDataUtil.getNewPageKeys(
-      store.getState(),
-      readState()
-    )
-    grouped.page = newPageKeys
-  }
-
   return {
     staticQueryIds: grouped.static || [],
     pageQueryIds: grouped.page || [],
@@ -231,10 +219,10 @@ const processPageQueries = async (queryIds, { state, activity }) => {
   )
 }
 
-const getInitialQueryProcessors = async ({ parentSpan } = {}) => {
+const getInitialQueryProcessors = ({ parentSpan } = {}) => {
   const state = store.getState()
   const queryIds = calcInitialDirtyQueryIds(state)
-  const { staticQueryIds, pageQueryIds } = await groupQueryIds(queryIds)
+  const { staticQueryIds, pageQueryIds } = groupQueryIds(queryIds)
 
   const queryjobsCount =
     _.filter(pageQueryIds.map(id => state.pages.get(id))).length +
@@ -268,7 +256,7 @@ const initialProcessQueries = async ({ parentSpan } = {}) => {
     pageQueryIds,
     processPageQueries,
     processStaticQueries,
-  } = await getInitialQueryProcessors({ parentSpan })
+  } = getInitialQueryProcessors({ parentSpan })
 
   await processStaticQueries()
   await processPageQueries()
@@ -302,10 +290,10 @@ let listenerQueue
  * Run any dirty queries. See `calcQueries` for what constitutes a
  * dirty query
  */
-const runQueuedQueries = async () => {
+const runQueuedQueries = () => {
   if (listenerQueue) {
     const state = store.getState()
-    const { staticQueryIds, pageQueryIds } = await groupQueryIds(
+    const { staticQueryIds, pageQueryIds } = groupQueryIds(
       calcDirtyQueryIds(state)
     )
     const pages = _.filter(pageQueryIds.map(id => state.pages.get(id)))
@@ -329,7 +317,7 @@ const runQueuedQueries = async () => {
  * For what constitutes a dirty query, see `calcQueries`
  */
 
-const startListeningToDevelopQueue = async () => {
+const startListeningToDevelopQueue = () => {
   // We use a queue to process batches of queries so that they are
   // processed consecutively
   let graphqlRunner = null
@@ -357,7 +345,7 @@ const startListeningToDevelopQueue = async () => {
     report.pendingActivity({ id: `query-running` })
   })
 
-  emitter.on(`API_RUNNING_QUEUE_EMPTY`, await runQueuedQueries)
+  emitter.on(`API_RUNNING_QUEUE_EMPTY`, runQueuedQueries)
   ;[
     `DELETE_CACHE`,
     `CREATE_NODE`,

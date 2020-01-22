@@ -23,9 +23,6 @@ const removeStaleJobs = require(`./remove-stale-jobs`)
 // Add `util.promisify` polyfill for old node versions
 require(`util.promisify/shim`)()
 
-const incrementalBuild =
-  process.env.GATSBY_INCREMENTAL_BUILD === `true` || false
-
 // Show stack trace on unhandled promises.
 process.on(`unhandledRejection`, (reason, p) => {
   report.panic(reason)
@@ -193,7 +190,7 @@ module.exports = async (args: BootstrapArgs) => {
 
   // During builds, delete html and css files from the public directory as we don't want
   // deleted pages and styles from previous builds to stick around.
-  if (!incrementalBuild && process.env.NODE_ENV === `production`) {
+  if (process.env.NODE_ENV === `production`) {
     activity = report.activityTimer(
       `delete html and css files from previous builds`,
       {
@@ -255,12 +252,7 @@ module.exports = async (args: BootstrapArgs) => {
     try {
       // Attempt to empty dir if remove fails,
       // like when directory is mount point
-      if (!incrementalBuild) {
-        await fs.remove(cacheDirectory).catch(() => fs.emptyDir(cacheDirectory))
-      } else {
-        // Remove all files except the cache file
-        await del([`${cacheDirectory}/**/*.{json,js,css}`])
-      }
+      await fs.remove(cacheDirectory).catch(() => fs.emptyDir(cacheDirectory))
     } catch (e) {
       report.error(`Failed to remove .cache files.`, e)
     }

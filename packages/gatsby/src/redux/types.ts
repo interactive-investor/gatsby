@@ -11,7 +11,6 @@ export interface IReduxState {
     developMiddleware: any
     proxy: any
   }
-  pages?: any
 }
 
 export enum ProgramStatus {
