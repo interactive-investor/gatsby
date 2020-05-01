@@ -80,29 +80,29 @@ const getMatchPaths = pages => {
   // and sort them so more specific paths are before less specific paths.
   // More info in https://github.com/gatsbyjs/gatsby/issues/16097
   // small speedup: don't bother traversing when no matchPaths found.
-  if (matchPathPages.length) {
-    const newMatches = []
-    pages.forEach((page, index) => {
-      const isInsideMatchPath = !!matchPathPages.find(
-        pageWithMatchPath =>
-          !page.matchPath && match(pageWithMatchPath.matchPath, page.path)
-      )
+  // if (matchPathPages.length) {
+  //   const newMatches = []
+  //   pages.forEach((page, index) => {
+  //     const isInsideMatchPath = !!matchPathPages.find(
+  //       pageWithMatchPath =>
+  //         !page.matchPath && match(pageWithMatchPath.matchPath, page.path)
+  //     )
 
-      if (isInsideMatchPath) {
-        newMatches.push(
-          createMatchPathEntry(
-            {
-              ...page,
-              matchPath: page.path,
-            },
-            index
-          )
-        )
-      }
-    })
-    // Add afterwards because the new matches are not relevant for the existing search
-    matchPathPages.push(...newMatches)
-  }
+  //     if (isInsideMatchPath) {
+  //       newMatches.push(
+  //         createMatchPathEntry(
+  //           {
+  //             ...page,
+  //             matchPath: page.path,
+  //           },
+  //           index
+  //         )
+  //       )
+  //     }
+  //   })
+  //   // Add afterwards because the new matches are not relevant for the existing search
+  //   matchPathPages.push(...newMatches)
+  // }
 
   return matchPathPages
     .sort((a, b) => {
